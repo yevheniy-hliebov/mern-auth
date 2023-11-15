@@ -1,13 +1,24 @@
 const User = require("../models/User")
+const validation = require("../utils/validations")
 const bcrypt = require("bcrypt")
 
 const authController = {
     register: async (req, res, next) => {
         const { name, email, password } = req.body
 
-        if (password.length < 6) {
+        const answerValidateName = validation.validateName(name)
+        const isValidEmail = validation.validateName(email)
+        const answerValidatePassword = validation.validatePassword(password)
+
+        let message = {
+            name: answerValidateName.message,
+            isValidEmail: isValidEmail ? "Valid" : "Invalid email",
+            password: answerValidatePassword,
+        };
+
+        if (!answerValidateName.valid || !isValidEmail || !answerValidatePassword.valid) {
             return res.status(400).json({
-                message: "Password less than 6 characters"
+                message: message
             })
         }
 
