@@ -36,30 +36,8 @@ It includes instructions for programming registration, login, logout, session co
     |- package.json             // Package and script configuration file
     |- .env                     // File for storing confidential data
 ```
-cmd command for qiuck creating structure
-```
-mkdir -p backend/config backend/controllers backend/models backend/routes backend/middleware backend/utils
-touch backend/config/env.js
-touch backend/config/database.js
-touch backend/config/auth.js
-touch backend/controllers/authController.js
-touch backend/controllers/userController.js
-touch backend/models/User.js
-touch backend/routes/authRoutes.js
-touch backend/routes/userRoutes.js
-touch backend/middleware/authMiddleware.js
-touch backend/utils/validations.js
-touch backend/server.js
-touch backend/package.json
-touch backend/.env
-```
-
 
 ### Installation of all necessary packages.
-
-```
-cd backend
-```
 ```
 npm init -y
 ```
@@ -79,8 +57,8 @@ This command installs necessary packages:
 **Change package.json**
 ```json
 "scripts":{
-	"start": "node server.js",
-	"dev": "nodemon server.js"
+    "start": "node server.js",
+    "dev": "nodemon server.js"
 },
 ```
 
@@ -99,11 +77,6 @@ MONGODB_LINK = "mongodb+srv://<username>:<password>@<cluster-domain>/?dbName=<da
 SESSION_SECRET_KEY = "your_secret_key"
 ```
 
-`<username>`:       Your a database username  
-`<password>`:       Your a database password  
-`<cluster-domain>`: Your a database cluster domain  
-`<database-name>`:  The name of your database 
-
 ![mongodblink.png](/readme-img/mongodblink.png)
 
 ```js
@@ -120,8 +93,8 @@ exports.SESSION_SECRET_KEY = process.env.SESSION_SECRET_KEY;
 const Mongoose = require("mongoose");
 const { MONGODB_LINK } = require("./env")
 const connectDB = async () => {
-	await Mongoose.connect(MONGODB_LINK)
-	console.log("MongoDB Connected")
+    await Mongoose.connect(MONGODB_LINK)
+    console.log("MongoDB Connected")
 }
 module.exports = connectDB
 ```
@@ -224,49 +197,115 @@ const User = Mongoose.model("user", UserSchema)
 module.exports = User
 ```
 
-## 5. Register
+## 5. Register, Login and Logout API
 ```js
 // controllers/authController.js
 const User = require("../models/User")
 const bcrypt = require("bcrypt")
 
 const authController = {
-    register: async (req, res, next) => {
-        const { name, email, password } = req.body
-
-        if (password.length < 6) {
-            return res.status(400).json({
-                message: "Password less than 6 characters"
-            })
-        }
-
-        try {
-            const hashPassword = await bcrypt.hash(password, 12)
-
-            const user = await User.create({
-                name,
-                email,
-                password: hashPassword,
-            })
-
-            req.session.userId = user.id
-
-            return res.status(200).json({
-                message: "User successfully created"
-            })
-
-        } catch (error) {
-            res.status(400).json({
-                message: "User not successful created",
-                error: error.message
-            })
-        }
-    },
+    register: async (req, res, next) => { ... },
+    login: async (req, res, next) => { ... },
+    logout: async (req, res, next) => { ... }
 }
 
 module.exports = authController
 ```
 
+### Register function
+```js
+// controllers/authController.js
+register: async (req, res, next) => {
+    const { name, email, password } = req.body
+
+    if (password.length < 6) {
+        return res.status(400).json({
+            message: "Password less than 6 characters"
+        })
+    }
+
+    try {
+        const hashPassword = await bcrypt.hash(password, 12)
+
+        const user = await User.create({
+            name,
+            email,
+            password: hashPassword,
+        })
+
+        req.session.userId = user.id
+
+        return res.status(200).json({
+            message: "User successfully created"
+        })
+
+    } catch (error) {
+        res.status(400).json({
+            message: "User not successful created",
+            error: error.message
+        })
+    }
+},
+```
+
+### Login function
+```js
+// controllers/authController.js
+login: async (req, res, next) => {
+    const { email, password } = req.body
+
+    if (!email || !password) {
+        return res.status(400).json({
+            message: "Email or Password not present",
+        })
+    }
+
+    try {
+        const user = await User.findOne({ email })
+        if (!user) {
+            res.status(400).json({
+                message: "Login not successful",
+                error: "User not found",
+            })
+        } else {
+            const result = await bcrypt.compare(password, user.password);
+            if (!result) res.status(400).json({ message: "Login not successful", })
+            else {
+                req.session.userId = user.id
+                res.status(200).json({
+                    message: "User successfull",
+                    user,
+                })
+            }
+        }
+    } catch (error) {
+        res.status(400).json({
+            message: "An error occured",
+            error: error.message,
+        })
+    }
+}
+```
+
+### Logout
+```js
+// controllers/authController.js
+logout: async (req, res, next) => {
+    if (req.session.userId) {
+        req.session.destroy();
+        if (req.session == null) {
+            res.clearCookie('connect.sid'); // Очищення куки сесії
+            res.status(200).json({ message: 'Logged out successfully' });
+        } else {
+            res.status(500).json({ message: 'Logout failed' });
+        }
+    } else {
+        res.status(401).json({ message: 'Not logged in, unable to log out' });
+    }
+}
+
+```
+### Routes
 ```js
 // routes/authRoutes.js
 const express = require("express")
@@ -274,10 +313,13 @@ const router = express.Router()
 const authController = require("../controllers/authController")
 
 router.route("/register").post(authController.register)
+router.route("/login").post(authController.login) 
+router.route("/logout").post(authController.logout) 
 
 module.exports = router
 ```
 
+### Add router to `server.js`
 ```js
 // update server.js
 ...
@@ -289,85 +331,3 @@ app.use("/api/auth", require("./routes/authRoutes"))
 app.listen(SERVER_PORT, () => console.log(`Server Connected to port ${SERVER_PORT}`))
 ...
 ```
-
-## 6. Login
-Add login function to `authController` 
-```js
-// controllers/authController.js
-...
-const authController = {
-    register: async (req, res, next) => { ... },
-    login: async (req, res, next) => {
-        const { email, password } = req.body
-
-        if (!email || !password) {
-            return res.status(400).json({
-                message: "Email or Password not present",
-            })
-        }
-
-        try {
-            const user = await User.findOne({ email })
-            if (!user) {
-                res.status(400).json({
-                    message: "Login not successful",
-                    error: "User not found",
-                })
-            } else {
-                const result = await bcrypt.compare(password, user.password);
-                if (!result) res.status(400).json({ message: "Login not successful", })
-                else {
-                    req.session.userId = user.id
-                    res.status(200).json({
-                        message: "User successfull",
-                        user,
-                    })
-                }
-            }
-        } catch (error) {
-            res.status(400).json({
-                message: "An error occured",
-                error: error.message,
-            })
-        }
-    }
-}
-...
-```
-Add login route to `authRoutes.js`
-```js
-// routes/authRoutes.js
-router.route("/login").post(authController.login) 
-```
-
-## 7. Logout
-Add logout function to `authController` 
-```js
-// controllers/authController.js
-...
-const authController = {
-    register: async (req, res, next) => { ... },
-    login: async (req, res, next) => { ... },
-    logout: async (req, res, next) => {
-        if (req.session.userId) {
-            req.session.destroy();
-            if (req.session == null) {
-                res.clearCookie('connect.sid'); // Очищення куки сесії
-                res.status(200).json({ message: 'Logged out successfully' });
-            } else {
-                res.status(500).json({ message: 'Logout failed' });
-            }
-        } else {
-            res.status(401).json({ message: 'Not logged in, unable to log out' });
-        }
-    }
-}
-...
-```
-Add logout route to `authRoutes.js`
-```js
-// routes/authRoutes.js
-router.route("/logout").post(authController.logout) 
-```
-
-## 8. 
